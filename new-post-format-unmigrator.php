@@ -17,6 +17,10 @@ TODO:
 
 **************************************************************************/
 
+/**
+ * Does the actual work of fetching posts needing unmigrating
+ * as well as processing individual posts.
+ */
 class New_Post_Format_Unmigrator {
 
 	/**
@@ -38,6 +42,12 @@ class New_Post_Format_Unmigrator {
 
 	private function __construct() { /* Do nothing here */ }
 
+	/**
+	 * Fetches some posts that need unmigrating.
+	 *
+	 * @param array $args Function arguments. Currently only supports "count".
+	 * @return object WP_Query
+	 */
 	public function get_posts( $args = array() ) {
 		$args = wp_parse_args( $args, array(
 			'count' => 25,
@@ -71,6 +81,13 @@ class New_Post_Format_Unmigrator {
 		return $query;
 	}
 
+	/**
+	 * Unmigrates an individual post by adding the data from the post meta to the post_content
+	 * and then saves the changes to the post.
+	 *
+	 * @param object|int $post A post object or post ID.
+	 * @return boolean True if post updated, false if not.
+	 */
 	public function unmigrate_post( $post ) {
 		$post = get_post( $post );
 
@@ -184,11 +201,21 @@ class New_Post_Format_Unmigrator {
 	}
 }
 
+/**
+ * Returns the single instance of New_Post_Format_Unmigrator.
+ * Call this function to reference the class, i.e. New_Post_Format_Unmigrator()->get_posts().
+ *
+ * @return object New_Post_Format_Unmigrator
+ */
 function New_Post_Format_Unmigrator() {
 	return New_Post_Format_Unmigrator::instance();
 }
 
 
+
+/**
+ * Implements a UI in the WordPress admin area for unmigrating posts.
+ */
 class New_Post_Format_Unmigrator_UI {
 
 	/**
@@ -211,14 +238,23 @@ class New_Post_Format_Unmigrator_UI {
 
 	private function __construct() { /* Do nothing here */ }
 
+	/**
+	 * Registers the class's action.
+	 */
 	public function setup() {
 		add_action( 'admin_menu', array( $this, 'register_admin_menu' ) );
 	}
 
+	/**
+	 * Registers the class's menu entry.
+	 */
 	public function register_admin_menu() {
 		add_management_page( 'New Post Format Unmigrator', 'New Post Formats', 'manage_options', 'new-post-format-unmigrator', array( $this, 'admin_page' ) );
 	}
 
+	/**
+	 * Outputs the class's admin page and uses New_Post_Format_Unmigrator to unmigrate the posts. 
+	 */
 	public function admin_page() {
 		echo '<div class="wrap">';
 		screen_icon();
@@ -285,12 +321,20 @@ class New_Post_Format_Unmigrator_UI {
 		echo '</div>';
 	}
 
+	/**
+	 * Flushes the current buffer to the page.
+	 */
 	public function flush() {
 		ob_flush();
 		flush();
 	}
 }
 
+/**
+ * Returns the single instance of New_Post_Format_Unmigrator_UI.
+ *
+ * @return object New_Post_Format_Unmigrator_UI
+ */
 function New_Post_Format_Unmigrator_UI() {
 	return New_Post_Format_Unmigrator_UI::instance();
 }
