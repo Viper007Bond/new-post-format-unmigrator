@@ -17,116 +17,6 @@ TODO:
 
 **************************************************************************/
 
-class New_Post_Format_Unmigrator_UI {
-
-	/**
-	 * Stores the shared instance of this class.
-	 */
-	private static $instance;
-
-	/**
-	 * Returns this shared instance of this class, making a new one if need be.
-	 *
-	 * @return object New_Post_Format_Unmigrator_UI
-	 */
-	public static function instance() {
-		if ( ! isset( self::$instance ) ) {
-			self::$instance = new New_Post_Format_Unmigrator_UI;
-			self::$instance->setup();
-		}
-		return self::$instance;
-	}
-
-	private function __construct() { /* Do nothing here */ }
-
-	public function setup() {
-		add_action( 'admin_menu', array( $this, 'register_admin_menu' ) );
-	}
-
-	public function register_admin_menu() {
-		add_management_page( 'New Post Format Unmigrator', 'New Post Formats', 'manage_options', 'new-post-format-unmigrator', array( $this, 'admin_page' ) );
-	}
-
-	public function admin_page() {
-		echo '<div class="wrap">';
-		screen_icon();
-		echo '<h2>New Post Format Unmigrator</h2>';
-
-		// Intro text
-		if ( empty( $_GET['processposts'] ) || ! isset( $_GET['processed'] ) || empty( $_GET['_wpnonce'] ) ) {
-			$query = New_Post_Format_Unmigrator()->get_posts( array( 'count' => 1 ) );
-
-			if ( ! $query->found_posts ) {
-				echo "<p>No posts needing migration could be found. Looks like you're all good to go!</p>";
-			} else {
-				echo '<p>' . sprintf( '%s posts were found that need to be unmigrated.', number_format_i18n( $query->found_posts ) ) . '</p>';
-				echo '<p>Click the button below to begin processing the posts in chunks. The page will automatically refresh after each chunk of posts has been processed.</p>';
-
-				$button_url = add_query_arg( array(
-					'processposts' => 1,
-					'processed'    => 0,
-				) );
-
-				$button_url = wp_nonce_url( $button_url, 'new-post-format-unmigrator' );
-
-				echo '<p><a class="button-primary" href="' . esc_url( $button_url ) . '">Start Processing Posts</a></p>';
-			}
-		}
-		// Process posts
-		else {
-			if ( ! wp_verify_nonce( $_GET['_wpnonce'], 'new-post-format-unmigrator' ) ) {
-				echo '<p>Bad nonce. Please go back and try again.</p>';
-			}
-			else {
-				$processed = absint( $_GET['processed'] );
-
-				$query = New_Post_Format_Unmigrator()->get_posts();
-
-				// No posts found, they must have been all processed
-				if ( ! $query->found_posts ) {
-					echo '<p>' . sprintf( 'Finished processing %s posts', number_format_i18n( $processed ) ) . '</p>';
-				}
-				// Process some posts!
-				else {
-					echo '<p>Processing posts...</p>';
-
-					echo '<ol start="' . esc_attr( $processed + 1 ) . '">';
-					$this->flush();
-					foreach ( $query->posts as $post ) {
-						$result = New_Post_Format_Unmigrator()->unmigrate_post( $post );
-						$processed++;
-
-						echo '<li><em>' . $post->post_title . '</em> ';
-
-						echo ( $result ) ? 'Processed' : '<strong style="color:red">FAILED</strong>';
-
-						$this->flush();
-					}
-					echo '</ol>';
-
-					echo '<p>One moment, refreshing the page to continue processing more posts...</p>';
-					echo '<script type="text/javascript">window.location.href = "' . esc_url_raw( add_query_arg( 'processed', $processed ) ) . '";</script>';
-				}
-			}
-		}
-
-		echo '</div>';
-	}
-
-	public function flush() {
-		ob_flush();
-		flush();
-	}
-}
-
-function New_Post_Format_Unmigrator_UI() {
-	return New_Post_Format_Unmigrator_UI::instance();
-}
-
-add_action( 'plugins_loaded', 'New_Post_Format_Unmigrator_UI' );
-
-
-
 class New_Post_Format_Unmigrator {
 
 	/**
@@ -297,5 +187,114 @@ class New_Post_Format_Unmigrator {
 function New_Post_Format_Unmigrator() {
 	return New_Post_Format_Unmigrator::instance();
 }
+
+
+class New_Post_Format_Unmigrator_UI {
+
+	/**
+	 * Stores the shared instance of this class.
+	 */
+	private static $instance;
+
+	/**
+	 * Returns this shared instance of this class, making a new one if need be.
+	 *
+	 * @return object New_Post_Format_Unmigrator_UI
+	 */
+	public static function instance() {
+		if ( ! isset( self::$instance ) ) {
+			self::$instance = new New_Post_Format_Unmigrator_UI;
+			self::$instance->setup();
+		}
+		return self::$instance;
+	}
+
+	private function __construct() { /* Do nothing here */ }
+
+	public function setup() {
+		add_action( 'admin_menu', array( $this, 'register_admin_menu' ) );
+	}
+
+	public function register_admin_menu() {
+		add_management_page( 'New Post Format Unmigrator', 'New Post Formats', 'manage_options', 'new-post-format-unmigrator', array( $this, 'admin_page' ) );
+	}
+
+	public function admin_page() {
+		echo '<div class="wrap">';
+		screen_icon();
+		echo '<h2>New Post Format Unmigrator</h2>';
+
+		// Intro text
+		if ( empty( $_GET['processposts'] ) || ! isset( $_GET['processed'] ) || empty( $_GET['_wpnonce'] ) ) {
+			$query = New_Post_Format_Unmigrator()->get_posts( array( 'count' => 1 ) );
+
+			if ( ! $query->found_posts ) {
+				echo "<p>No posts needing migration could be found. Looks like you're all good to go!</p>";
+			} else {
+				echo '<p>' . sprintf( '%s posts were found that need to be unmigrated.', number_format_i18n( $query->found_posts ) ) . '</p>';
+				echo '<p>Click the button below to begin processing the posts in chunks. The page will automatically refresh after each chunk of posts has been processed.</p>';
+
+				$button_url = add_query_arg( array(
+					'processposts' => 1,
+					'processed'    => 0,
+				) );
+
+				$button_url = wp_nonce_url( $button_url, 'new-post-format-unmigrator' );
+
+				echo '<p><a class="button-primary" href="' . esc_url( $button_url ) . '">Start Processing Posts</a></p>';
+			}
+		}
+		// Process posts
+		else {
+			if ( ! wp_verify_nonce( $_GET['_wpnonce'], 'new-post-format-unmigrator' ) ) {
+				echo '<p>Bad nonce. Please go back and try again.</p>';
+			}
+			else {
+				$processed = absint( $_GET['processed'] );
+
+				$query = New_Post_Format_Unmigrator()->get_posts();
+
+				// No posts found, they must have been all processed
+				if ( ! $query->found_posts ) {
+					echo '<p>' . sprintf( 'Finished processing %s posts', number_format_i18n( $processed ) ) . '</p>';
+				}
+				// Process some posts!
+				else {
+					echo '<p>Processing posts...</p>';
+
+					echo '<ol start="' . esc_attr( $processed + 1 ) . '">';
+					$this->flush();
+					foreach ( $query->posts as $post ) {
+						$result = New_Post_Format_Unmigrator()->unmigrate_post( $post );
+						$processed++;
+
+						echo '<li><em>' . $post->post_title . '</em> ';
+
+						echo ( $result ) ? 'Processed' : '<strong style="color:red">FAILED</strong>';
+
+						$this->flush();
+					}
+					echo '</ol>';
+
+					echo '<p>One moment, refreshing the page to continue processing more posts...</p>';
+					echo '<script type="text/javascript">window.location.href = "' . esc_url_raw( add_query_arg( 'processed', $processed ) ) . '";</script>';
+				}
+			}
+		}
+
+		echo '</div>';
+	}
+
+	public function flush() {
+		ob_flush();
+		flush();
+	}
+}
+
+function New_Post_Format_Unmigrator_UI() {
+	return New_Post_Format_Unmigrator_UI::instance();
+}
+
+add_action( 'plugins_loaded', 'New_Post_Format_Unmigrator_UI' );
 
 ?>
