@@ -77,7 +77,7 @@ class New_Post_Format_Unmigrator {
 	 * Modifies the database query used to fetch posts needing unmigrating.
 	 * This results in a conditional like this pseudo-query:
 	 *
-	 * ( key = _format_url OR _wp_format_url EXISTS ) AND key = _format_unmigrated NOT EXISTS
+	 * ( EXISTS: key = '_format_url' OR key = '_wp_format_url' ) AND key = '_format_unmigrated' NOT EXISTS
 	 *
 	 * @param array $clauses The parts of the database query.
 	 * @param object $query The WP_Query object.
@@ -88,9 +88,9 @@ class New_Post_Format_Unmigrator {
 
 		if ( $query->get( 'new_post_format_unmigrator' ) ) {
 			$clauses['join'] .= "
-				INNER JOIN wp_postmeta AS mt_format_url    ON ( wp_posts.ID = mt_format_url.post_id )
-				INNER JOIN wp_postmeta AS mt_wp_format_url ON ( wp_posts.ID = mt_wp_format_url.post_id )
-				LEFT JOIN wp_postmeta AS mt_format_unmigrated ON ( wp_posts.ID = mt_format_unmigrated.post_id AND mt_format_unmigrated.meta_key = '_format_unmigrated' )
+				INNER JOIN wp_postmeta AS mt_format_url        ON ( wp_posts.ID = mt_format_url.post_id )
+				INNER JOIN wp_postmeta AS mt_wp_format_url     ON ( wp_posts.ID = mt_wp_format_url.post_id )
+				LEFT  JOIN wp_postmeta AS mt_format_unmigrated ON ( wp_posts.ID = mt_format_unmigrated.post_id AND mt_format_unmigrated.meta_key = '_format_unmigrated' )
 			";
 
 			$clauses['where'] .= " AND ( ( mt_format_url.meta_key = '_format_url' OR mt_wp_format_url.meta_key = '_wp_format_url' ) AND mt_format_unmigrated.post_id IS NULL )";
