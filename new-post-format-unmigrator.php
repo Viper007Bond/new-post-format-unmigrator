@@ -105,53 +105,49 @@ class New_Post_Format_Unmigrator {
 			case 'image':
 				$image = get_post_meta( $post->ID, '_format_image', true );
 
-				if ( ! $image )
-					return false;
+				if ( $image ) {
+					// Is it just a URL?
+					if ( false === strpos( $image, '<' ) ) {
+						$image = '<img src="' . esc_url( $image ) . '" alt="" />';
+					}
 
-				// Is it just a URL?
-				if ( false === strpos( $image, '<' ) ) {
-					$image = '<img src="' . esc_url( $image ) . '" alt="" />';
+					// Wrap the image in a link if the user supplied a URL
+					$url = get_post_meta( $post->ID, '_format_url', true );
+					if ( $url ) {
+						$image = preg_replace( '#(.*)(<img [^>]+>)(.*)#i', '\1<a href="' . esc_url( $url ) . '">\2</a>\3', $image );
+					}
+
+					$post_content = $image . "\n\n" . $post_content;
 				}
-
-				// Wrap the image in a link if the user supplied a URL
-				$url = get_post_meta( $post->ID, '_format_url', true );
-				if ( $url ) {
-					$image = preg_replace( '#(.*)(<img [^>]+>)(.*)#i', '\1<a href="' . esc_url( $url ) . '">\2</a>\3', $image );
-				}
-
-				$post_content = $image . "\n\n" . $post_content;
 
 				break;
 
 			case 'link':
 				$url = get_post_meta( $post->ID, '_format_link_url', true );
 
-				if ( ! $url )
-					return false;
+				if ( $url ) {
+					$url = '<a href="' . esc_url( $url ) . '">' . $post->post_title . '</a>';
 
-				$url = '<a href="' . esc_url( $url ) . '">' . $post->post_title . '</a>';
-
-				$post_content = $url . "\n\n" . $post_content;
+					$post_content = $url . "\n\n" . $post_content;
+				}
 
 				break;
 
 			case 'video':
 				$video = get_post_meta( $post->ID, '_format_video_embed', true );
 
-				if ( ! $video )
-					return false;
-
-				$post_content = $video . "\n\n" . $post_content;
+				if ( $video ) {
+					$post_content = $video . "\n\n" . $post_content;
+				}
 
 				break;
 
 			case 'audio':
 				$audio = get_post_meta( $post->ID, '_format_audio_embed', true );
 
-				if ( ! $audio )
-					return false;
-
-				$post_content = $audio . "\n\n" . $post_content;
+				if ( $audio ) {
+					$post_content = $audio . "\n\n" . $post_content;
+				}
 
 				break;
 
@@ -184,6 +180,12 @@ class New_Post_Format_Unmigrator {
 				return false;
 		} // end switch()
 
+		// Flag post as unmigrated
+		update_post_meta( $post->ID, '_format_unmigrated', 1 );
+
+		if ( $post->post_content === $post_content )
+			return false;
+
 		$new_post = array(
 			'ID'           => $post->ID,
 			'post_content' => $post_content,
@@ -193,9 +195,6 @@ class New_Post_Format_Unmigrator {
 
 		if ( ! $result )
 			return false;
-
-		// Flag post as unmigrated
-		update_post_meta( $post->ID, '_format_unmigrated', 1 );
 
 		return true;
 	}
@@ -253,7 +252,7 @@ class New_Post_Format_Unmigrator_UI {
 	}
 
 	/**
-	 * Outputs the class's admin page and uses New_Post_Format_Unmigrator to unmigrate the posts. 
+	 * Outputs the class's admin page and uses New_Post_Format_Unmigrator to unmigrate the posts.
 	 */
 	public function admin_page() {
 		echo '<div class="wrap">';
@@ -306,7 +305,7 @@ class New_Post_Format_Unmigrator_UI {
 
 						echo '<li><em>' . $post->post_title . '</em> ';
 
-						echo ( $result ) ? 'Processed' : '<strong style="color:red">FAILED</strong>';
+						echo ( $result ) ? 'Processed' : '<strong style="color:red">No action taken</strong>';
 
 						$this->flush();
 					}
