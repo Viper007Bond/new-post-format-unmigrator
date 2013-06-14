@@ -52,19 +52,10 @@ class New_Post_Format_Unmigrator {
 			'count' => 25,
 		) );
 
+		add_filter( 'posts_clauses', array( $this, 'filter_sql' ), 10, 2 );
+
 		$query = new WP_Query( array(
-			'meta_query'       => array(
-				array(
-					'key'      => '_format_url',
-					'value'    => null,
-					'compare'  => 'EXISTS',
-				),
-				array(
-					'key'      => '_format_unmigrated',
-					'value'    => null,
-					'compare'  => 'NOT EXISTS',
-				),
-			),
+			'new_post_format_unmigrator' => 1, // This tells the SQL filter to modify this query
 			'tax_query'        => array(
 				array(
 					'taxonomy' => 'post_format',
@@ -77,7 +68,35 @@ class New_Post_Format_Unmigrator {
 			'order'            => 'ASC',
 		) );
 
+		remove_filter( 'posts_clauses', array( $this, 'filter_sql' ), 10, 2 );
+
 		return $query;
+	}
+
+	/**
+	 * Modifies the database query used to fetch posts needing unmigrating.
+	 * This results in a conditional like this pseudo-query:
+	 *
+	 * ( key = _format_url OR _wp_format_url EXISTS ) AND key = _format_unmigrated NOT EXISTS
+	 *
+	 * @param array $clauses The parts of the database query.
+	 * @param object $query The WP_Query object.
+	 * @return array The modified query parts.
+	 */
+	public function filter_sql( $clauses, $query ) {
+		global $wpdb;
+
+		if ( $query->get( 'new_post_format_unmigrator' ) ) {
+			$clauses['join'] .= "
+				INNER JOIN wp_postmeta AS mt_format_url    ON ( wp_posts.ID = mt_format_url.post_id )
+				INNER JOIN wp_postmeta AS mt_wp_format_url ON ( wp_posts.ID = mt_wp_format_url.post_id )
+				LEFT JOIN wp_postmeta AS mt_format_unmigrated ON ( wp_posts.ID = mt_format_unmigrated.post_id AND mt_format_unmigrated.meta_key = '_format_unmigrated' )
+			";
+
+			$clauses['where'] .= " AND ( ( mt_format_url.meta_key = '_format_url' OR mt_wp_format_url.meta_key = '_wp_format_url' ) AND mt_format_unmigrated.post_id IS NULL )";
+		}
+
+		return $clauses;
 	}
 
 	/**
@@ -102,8 +121,9 @@ class New_Post_Format_Unmigrator {
 
 		switch ( $post_format ) {
 			case 'image':
-				$image = get_post_meta( $post->ID, '_format_image', true );
 
+				// The later storage version which stores HTML
+				$image = get_post_meta( $post->ID, '_format_image', true );
 				if ( $image ) {
 					// Is it just a URL?
 					if ( false === strpos( $image, '<' ) ) {
@@ -113,16 +133,42 @@ class New_Post_Format_Unmigrator {
 					// Wrap the image in a link if the user supplied a URL
 					$url = get_post_meta( $post->ID, '_format_url', true );
 					if ( $url ) {
-						$image = preg_replace( '#(.*)(<img [^>]+>)(.*)#i', '\1<a href="' . esc_url( $url ) . '">\2</a>\3', $image );
+						$image = $this->wrap_img_tag_in_link( $image, $url );
 					}
 
 					$post_content = $image . "\n\n" . $post_content;
 				}
 
+				// Otherwise try the old version which (can?) stores an ID
+				else {
+					$image = get_post_meta( $post->ID, '_wp_format_image', true );
+
+					// Convert ID into HTML
+					if ( $image && is_numeric( $image ) ) {
+						$image = wp_get_attachment_image( $image, 'large' );
+					}
+
+					if ( $image ) {
+						// Wrap the image in a link if the user supplied a URL
+						$url = get_post_meta( $post->ID, '_wp_format_url', true );
+						if ( $url ) {
+							$image = $this->wrap_img_tag_in_link( $image, $url );
+						}
+
+						$post_content = $image . "\n\n" . $post_content;
+					}
+				}
+
 				break;
 
 			case 'link':
+				// The later storage version
 				$url = get_post_meta( $post->ID, '_format_link_url', true );
+
+				// The earlier storage version
+				if ( ! $url ) {
+					$url = get_post_meta( $post->ID, '_wp_format_url', true );
+				}
 
 				if ( $url ) {
 					$url = '<a href="' . esc_url( $url ) . '">' . $post->post_title . '</a>';
@@ -133,19 +179,18 @@ class New_Post_Format_Unmigrator {
 				break;
 
 			case 'video':
-				$video = get_post_meta( $post->ID, '_format_video_embed', true );
+			case 'audio':
 
-				if ( $video ) {
-					$post_content = $video . "\n\n" . $post_content;
+				// The later storage version
+				$media = get_post_meta( $post->ID, '_format_'. $post_format . '_embed', true );
+
+				// The earlier storage version
+				if ( ! $media ) {
+					$media = get_post_meta( $post->ID, '_wp_format_media', true );
 				}
 
-				break;
-
-			case 'audio':
-				$audio = get_post_meta( $post->ID, '_format_audio_embed', true );
-
-				if ( $audio ) {
-					$post_content = $audio . "\n\n" . $post_content;
+				if ( $media ) {
+					$post_content = $media . "\n\n" . $post_content;
 				}
 
 				break;
@@ -153,6 +198,14 @@ class New_Post_Format_Unmigrator {
 			case 'quote':
 				$quote_source_name = get_post_meta( $post->ID, '_format_quote_source_name', true );
 				$quote_source_url  = get_post_meta( $post->ID, '_format_quote_source_url',  true );
+
+				// The earlier storage version
+				if ( ! $quote_source_name ) {
+					$quote_source_name = get_post_meta( $post->ID, '_wp_format_quote_source', true );
+				}
+				if ( ! $quote_source_url ) {
+					$quote_source_url  = get_post_meta( $post->ID, '_wp_format_url', true );
+				}
 
 				// No quote source name but there is a URL, then use the URL as the name
 				if ( ! $quote_source_name && $quote_source_url ) {
@@ -196,6 +249,17 @@ class New_Post_Format_Unmigrator {
 			return false;
 
 		return true;
+	}
+
+	/**
+	 * Wraps a link tag around the img tag in the provided HTML.
+	 *
+	 * @param string $html The HTML to search in and process.
+	 * @param string $url The URL that should be added.
+	 * @return string The modified HTML.
+	 */
+	public function wrap_img_tag_in_link( $html, $url ) {
+		return preg_replace( '#(.*)(<img [^>]+>)(.*)#i', '\1<a href="' . esc_url( $url ) . '">\2</a>\3', $html );
 	}
 }
 
