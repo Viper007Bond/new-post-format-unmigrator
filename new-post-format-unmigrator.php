@@ -387,8 +387,8 @@ class New_Post_Format_Unmigrator_UI {
 	 * Flushes the current buffer to the page.
 	 */
 	public function flush() {
-		ob_flush();
-		flush();
+		@ob_flush();
+		@flush();
 	}
 }
 
